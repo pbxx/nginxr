@@ -43,6 +43,13 @@ try {
                 //done unzipping, delete zip and rename nginx folder
                 fs.unlinkSync(options.binDir + '/nginx.zip')
 
+                if (!fs.existsSync(options.binDir + '/nginx-1.21.1/logs')) {
+                    fs.mkdirSync(options.binDir + '/nginx-1.21.1/logs');
+                }
+                if (!fs.existsSync(options.binDir + '/nginx-1.21.1/temp')) {
+                    fs.mkdirSync(options.binDir + '/nginx-1.21.1/temp');
+                }
+
             });
         });
     } else if (process.platform = "linux") {

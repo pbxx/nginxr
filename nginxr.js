@@ -9,6 +9,10 @@ var nginxPath = path.resolve('bin/nginx-1.21.1')
 
 var console = new KindLogs('nginxr > main')
 
+var globals = {
+
+}
+
 const child = execFile(nginxFile, [], {
     cwd: nginxPath
 }, (error, stdout, stderr) => {
@@ -23,23 +27,39 @@ console.log(`Started NGINX master process at pid ${child.pid}.`);
 
 function exitHandler(options, exitCode) {
     var console = new KindLogs('nginxr > exitHandler')
-    if (exitCode == 0) {
-        console.log(`Process exit code 0.`)
-    } else {
-        console.log(`Exit code was non-zero, code ${exitCode}.`)
-    }
-
-    execFile(nginxFile, ['-s', 'quit'], {
-        cwd: nginxPath
-    }, (error, stdout, stderr) => {
-        if (error) {
-            throw error
-        }
-        console.log(`Exiting NGINX child process(es)...`)
-        if (options.exit) process.exit()
-    })
     
+
+    if (options.cleanup) {
+        console.log(`Exiting NGINX child process(es)... Timeout 3s...`)
+        execFile(nginxFile, ['-s', 'quit'], {
+            cwd: nginxPath
+        }, (error, stdout, stderr) => {
+            if (error) {
+                throw error
+            }
+
+            if (exitCode == 0) {
+                console.log(`Process exit code 0.`)
+            } else {
+                console.log(`Exit code was non-zero, code ${exitCode}.`)
+            }
+            process.exit()
+
+        })
+    } else if (options.exit) {
+        //set emergency timeout, for if a user calls for an exit and it doesnt happen...
+        setTimeout(() => {
+            if (exitCode == 0) {
+                console.log(`Process exit code 0.`)
+            } else {
+                console.log(`Exit code was non-zero, code ${exitCode}.`)
+            }
+            process.exit()
+        }, 3000)
+    }
 }
+
+
 
 //do something when app is closing
 process.on('exit', exitHandler.bind(null,{cleanup:true}));
