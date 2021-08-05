@@ -61,6 +61,7 @@ function exitHandler(options, exitCode) {
 
 
 
+
 //do something when app is closing
 process.on('exit', exitHandler.bind(null,{cleanup:true}));
 
