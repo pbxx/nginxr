@@ -24,9 +24,6 @@ try {
 
         if (!fs.existsSync(options.binDir)){
             fs.mkdirSync(options.binDir);
-            if (!fs.existsSync(options.nginxDir)){
-                fs.mkdirSync(options.nginxDir);
-            }
         }
 
         //directory should exist, download file
