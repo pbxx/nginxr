@@ -2,6 +2,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const process = require('process');
 const { KindLogs } = require('kindlogs');
+const confMaker = require('./config-maker.js');
 
 var nginxFile = path.resolve('bin/nginx-1.21.1', 'nginx.exe')
 var nginxPath = path.resolve('bin/nginx-1.21.1')
@@ -13,17 +14,41 @@ var globals = {
 
 }
 
-const child = execFile(nginxFile, [], {
-    cwd: nginxPath
-}, (error, stdout, stderr) => {
-    var console = new KindLogs('nginxr > execFile callback')
-    if (error) {
-        throw error;
-    }
-    console.log(stdout);
-});
 
-console.log(`Started NGINX master process at pid ${child.pid}.`);
+module.exports = {
+    Nginxr: class {
+        constructor (options) {
+            let thisClass = this
+            const child = execFile(nginxFile, [], {
+                cwd: nginxPath
+            }, (error, stdout, stderr) => {
+                var console = new KindLogs('nginxr > execFile callback')
+                if (error) {
+                    throw error;
+                }
+                
+                console.log(stdout);
+            });
+
+            thisClass.pid = child.pid
+
+            var configRendered = confMaker.makeConfig(options)
+            var console = new KindLogs('nginxr > makeConfig resolved')
+            console.log(configRendered);
+            console.log(`Started NGINX master process at pid ${thisClass.pid}.`);
+            
+            
+        }
+        updateConfig() {
+
+        }
+        restart() {
+
+        }
+    }
+    
+}
+
 
 function exitHandler(options, exitCode) {
     var console = new KindLogs('nginxr > exitHandler')
@@ -43,7 +68,7 @@ function exitHandler(options, exitCode) {
             if (error) {
                 throw error
             }
-            
+
             process.exit()
 
         })

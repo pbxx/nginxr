@@ -1,44 +1,38 @@
-
-#user  nobody;
-worker_processes  1;
-
-#error_log  logs/error.log;
-#error_log  logs/error.log  notice;
-#error_log  logs/error.log  info;
-
-#pid        logs/nginx.pid;
-
+<% if (config['worker_processes']) { %>
+worker_processes  <%- config['worker_processes'] %>;
+<% } %>
+<% if (config.options) { %>
+<% for (key of Object.keys(config.options)) { %>
+<%- key %> <%- config.options[key] %>
+<% } %>
+<% } %>
 <% if (config.events) { %>
 events {
-    <% for (option of config.events.options) { %>
-    <%- option %>
+    <% for (key of Object.keys(config.events)) { %>
+    <%- key %> <%- config.events[key] %>;
     <% } %>
 }
 <% } %>
-
+<% if (config.http) { %>
 <% for (httpBlock of config.http) { %>
 http {
-    <% for (option of httpBlock.options) { %>
-    <%- if (httpBlock.options[option]) httpBlock.options[option] %>
+    <% for (key of Object.keys(httpBlock.options)) { %>
+    <%- key %> <%- httpBlock.options[key] %>;
     <% } %>
-
     <% for (server of httpBlock.servers) { %>
-    
     server {
-        <% for (option of server.options) { %>
-        <%- option %>
+        <% for (key of Object.keys(server.options)) { %>
+        <%- key %> <%- server.options[key] %>;
         <% } %>
-
         <% for (location of server.locations) { %>
-        
         location <%- location.path %> {
-            <% for (option of location.options) { %>
-            <%- option %>
+            <% for (key of Object.keys(location.options)) { %>
+            <%- key %> <%- location.options[key] %>;
             <% } %>
         }
         <% } %>
-        
     }
     <% } %>
 }
+<% } %>
 <% } %>
