@@ -3,12 +3,12 @@ worker_processes  <%- config['worker_processes'] %>;
 <% } %>
 <% if (config.options) { %>
 <% for (key of Object.keys(config.options)) { %>
-<%- key %> <%- config.options[key] %>
+<%- key %> <%- config.options[key] -%>
 <% } %>
 <% } %>
 <% if (config.events) { %>
 events {
-    <% for (key of Object.keys(config.events)) { %>
+    <% for (key of Object.keys(config.events)) { -%>
     <%- key %> <%- config.events[key] %>;
     <% } %>
 }
@@ -16,23 +16,29 @@ events {
 <% if (config.http) { %>
 <% for (httpBlock of config.http) { %>
 http {
-    <% for (key of Object.keys(httpBlock.options)) { %>
-    <%- key %> <%- httpBlock.options[key] %>;
-    <% } %>
-    <% for (server of httpBlock.servers) { %>
+    <% for (key of Object.keys(httpBlock)) { -%>
+    <% if (key != 'servers') { %>
+    <%- key %> <%- httpBlock[key] %>;
+    <% } else { -%>
+        <% for (server of httpBlock.servers) { %>
     server {
-        <% for (key of Object.keys(server.options)) { %>
-        <%- key %> <%- server.options[key] %>;
+        <% for (key of Object.keys(server)) { %>
+        <%- key %> <%- server[key] %>;
         <% } %>
         <% for (location of server.locations) { %>
         location <%- location.path %> {
-            <% for (key of Object.keys(location.options)) { %>
-            <%- key %> <%- location.options[key] %>;
-            <% } %>
+        <% for (key of Object.keys(location)) { %>
+        <% if (key != 'path') { -%>
+        <%- key %> <%- location[key] %>;
+        <% } %>
+        <% } %>
         }
         <% } %>
     }
-    <% } %>
+        <% } %>
+    <% } -%>
+    <% } -%>
+    
 }
-<% } %>
-<% } %>
+<% } -%>
+<% } -%>

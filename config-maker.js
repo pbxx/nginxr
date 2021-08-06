@@ -11,6 +11,6 @@ module.exports = {
             configRendered = str
         });
 
-        return configRendered
+        return configRendered.replace(/^\s*[\r\n]/gm, "\n\r") 
     }
 }
