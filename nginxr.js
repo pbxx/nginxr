@@ -28,8 +28,14 @@ console.log(`Started NGINX master process at pid ${child.pid}.`);
 function exitHandler(options, exitCode) {
     var console = new KindLogs('nginxr > exitHandler')
     
-
     if (options.cleanup) {
+        if (exitCode == 0) {
+            console.log(`Process exit code 0.`)
+        } else {
+            console.log(`Exit code was non-zero, code ${exitCode}.`)
+        }
+    } else if (options.exit) {
+        
         console.log(`Exiting NGINX child process(es)... Timeout 3s...`)
         execFile(nginxFile, ['-s', 'quit'], {
             cwd: nginxPath
@@ -37,17 +43,12 @@ function exitHandler(options, exitCode) {
             if (error) {
                 throw error
             }
-
-            if (exitCode == 0) {
-                console.log(`Process exit code 0.`)
-            } else {
-                console.log(`Exit code was non-zero, code ${exitCode}.`)
-            }
+            
             process.exit()
 
         })
-    } else if (options.exit) {
-        //set emergency timeout, for if a user calls for an exit and it doesnt happen...
+
+        //set emergency timeout, for if a user calls for an exit and it doesnt happen...    
         setTimeout(() => {
             if (exitCode == 0) {
                 console.log(`Process exit code 0.`)

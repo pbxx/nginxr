@@ -1,0 +1,44 @@
+
+#user  nobody;
+worker_processes  1;
+
+#error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+
+#pid        logs/nginx.pid;
+
+<% if (config.events) { %>
+events {
+    <% for (option of config.events.options) { %>
+    <%- option %>
+    <% } %>
+}
+<% } %>
+
+<% for (httpBlock of config.http) { %>
+http {
+    <% for (option of httpBlock.options) { %>
+    <%- if (httpBlock.options[option]) httpBlock.options[option] %>
+    <% } %>
+
+    <% for (server of httpBlock.servers) { %>
+    
+    server {
+        <% for (option of server.options) { %>
+        <%- option %>
+        <% } %>
+
+        <% for (location of server.locations) { %>
+        
+        location <%- location.path %> {
+            <% for (option of location.options) { %>
+            <%- option %>
+            <% } %>
+        }
+        <% } %>
+        
+    }
+    <% } %>
+}
+<% } %>

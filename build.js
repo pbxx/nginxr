@@ -49,7 +49,6 @@ try {
                 if (!fs.existsSync(options.binDir + '/nginx-1.21.1/temp')) {
                     fs.mkdirSync(options.binDir + '/nginx-1.21.1/temp');
                 }
-                
 
             });
         });
