@@ -23,7 +23,9 @@ http {
         <% for (server of httpBlock.servers) { %>
     server {
         <% for (key of Object.keys(server)) { %>
+        <% if (key != 'locations') { %>
         <%- key %> <%- server[key] %>;
+        <% } %>
         <% } %>
         <% for (location of server.locations) { %>
         location <%- location.path %> {
