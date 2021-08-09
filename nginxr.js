@@ -1,12 +1,15 @@
 const path = require('path');
 const { execFile, execFileSync } = require('child_process');
+const cp = require('child_process');
 const process = require('process');
 const fs = require('fs');
 const { KindLogs } = require('kindlogs');
-const execa = require('execa');
 const confMaker = require('./config-maker.js');
 const fse = require('fs-extra');
-const { resolve } = require('path');
+const deepmerge = require('deepmerge')
+
+
+const sleep = milliseconds => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)
 
 var console = new KindLogs('nginxr > main')
 
@@ -15,74 +18,223 @@ var globals = {
     nginxFile: path.resolve('bin/nginx-1.21.1', 'nginx.exe'),
     nginxVer: '1.21.1',
     tenantCount: 0,
-    appPrefix: '',
     tenants: [],
+    isQuit: false,
+    defaultConfig: {
+        worker_processes: '1',
+        events: {
+            worker_connections: '1024'
+        },
+    },
+    defaultHttpDirective: {
+        include: 'mime.types',
+        default_type: 'application/octet-stream',
+        sendfile: 'on',
+        keepalive_timeout: '65',
+        gzip: 'on',
+        
+    },
+    defaultServerBlock: {
+        listen: 80,
+        server_name: 'localhost',
+        error_page: '500 502 503 504  /50x.html',
+    },
+    defaultLocationsBlock: [
+        {
+            path: '/',
+            root: 'html',
+            index: 'index.html index.htm'
+        }, 
+        {
+            path: '/50x.html',
+            root: 'html'
+        },
+    ],
 }
 
 module.exports = {
     Nginxr: class {
         constructor (options) {
             var thisClass = this
-            var configRendered = confMaker.makeConfig(options)
+            var configRendered = confMaker.makeConfig(mergeDefaultConfig(options))
+            //delete(configRendered.)
             var console = new KindLogs('nginxr > makeConfig resolved')
-            console.log(configRendered);
-
-            fs.writeFileSync(globals.nginxPath + '/conf/nginx.conf', configRendered)
+            //console.log(configRendered);
+            if (options.appPrefix && typeof(options.appPrefix) == 'string') {
+                thisClass.appPrefix = options.appPrefix
+            } else {
+                thisClass.appPrefix = ''
+            }
+            
 
             //const randomColor = Math.floor(Math.random()*16777215).toString(16);
             var newTenantPath = ''
             if (globals.tenantCount > 0) {
-                if (globals.appPrefix) {
-                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${globals.appPrefix}-tenant${globals.tenantCount}`);
+                if (thisClass.appPrefix) {
+                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${thisClass.appPrefix}-tenant${globals.tenantCount}/`);
                 } else {
-                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-tenant${globals.tenantCount}`);
+                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-tenant${globals.tenantCount}/`);
                 }
                 globals.tenantCount++
                 
-                copySync(globals.nginxPath, newTenantPath);
-            } else {
-                if (globals.appPrefix) {
-                    globals.tenantCount++
-                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${globals.appPrefix}`);
+                if (!fs.existsSync(newTenantPath)) {
                     copySync(globals.nginxPath, newTenantPath);
+                }
+                
+            } else {
+                if (thisClass.appPrefix) {
+                    globals.tenantCount++
+                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${thisClass.appPrefix}/`);
+                    if (!fs.existsSync(newTenantPath)) {
+                        copySync(globals.nginxPath, newTenantPath);
+                    }
                 } else {
                     globals.tenantCount++
-                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}`);
+                    newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}/`);
                 }
             }
 
-            const child = execFile('nginx.exe', [], {
-                cwd: path.resolve(newTenantPath)
-            }, (out, err, err2) => {
-                var console = new KindLogs('nginxr > execFile done')
-                if (error) {
-                    throw error;
-                }
-                
-                console.log(stdout);
-            });
-
-            thisClass.masterPid = child.pid
-            thisClass.cwd = path.resolve(newTenantPath)
-            globals.tenants.push(thisClass)
-            console.log(`Started NGINX master process at pid ${thisClass.masterPid}.`);
+            fs.writeFileSync(path.resolve(newTenantPath, 'conf/nginx.conf'), configRendered)
+            console.log(newTenantPath)
+            this.spawn(newTenantPath)
             
         }
-        updateConfig() {
+        newConfig(options) {
+            var thisClass = this
+            var configRendered = confMaker.makeConfig(mergeDefaultConfig(options))
+            fs.writeFileSync(path.resolve(this.cwd, 'conf/nginx.conf'), configRendered)
+            const stdout = execFileSync('nginx.exe', ['-s', 'reload'], { cwd: this.cwd })
+            console.log(stdout.toString());
+            sleep(2000)
+            //setTimeout(()=> {
+                this.restart()
+            //}, 1450)
+            
 
         }
         restart() {
+            //stop this tenant
+            //does not work currently
+            
+            var cwd = this.cwd
+            var console = new KindLogs('nginxr > restart')
+            var thisClass = this
+            console.log(this.cwd)
+            this.quit(true)
+            sleep(2000)
+            //setTimeout(()=> {
+                this.spawn(cwd)
+                console.log(`restart complete`)
+            //}, 2450)
 
         }
-        quit() {
+        quit(splice) {
             //stop this tenant
             var console = new KindLogs('nginxr > quit')
+            var thisClass = this
             console.log(this.cwd)
-            const stdout = execFileSync('nginx.exe', ['-s', 'quit'], { cwd: this.cwd })
-            console.log(stdout.toString());
+            execFileSync('nginx.exe', ['-s', 'quit'], { cwd: this.cwd, detached: true, })
+            if (splice) globals.tenants.splice(thisClass.tenantIndex-1, 1)
+            //sleep(2150)
+            return true
+            
+        }
+        spawn(newTenantPath, keepOldPid) {
+            var thisClass = this
+            this.cwd = newTenantPath
+            //setTimeout(()=> {
+            this.nginx = cp.spawn('nginx.exe', [], {
+                cwd: newTenantPath,
+                stdio: 'ignore',
+                detached: true,
+            });
+
+            if (!keepOldPid) {
+                this.pid = this.nginx.pid
+                fs.writeFileSync(path.resolve(this.cwd, 'logs/nginx.pid'), `${this.pid}`)
+            }
+            
+            this.tenantIndex = globals.tenants.push(this)
+            console.log(`Started NGINX master process at pid ${this.pid}.`);
+            //}, 450)
+
+            
         }
     }
     
+}
+
+function mergeDefaultConfig(config) {
+    config = {
+        ...globals.defaultConfig,
+        ...config,
+    }
+    delete config.appPrefix
+
+    if (config.http && Array.isArray(config.http)) {
+        //http directives were passed with config, merge defaults on each
+        for (var i = 0; i < config.http.length; i++) {
+            config.http[i] = {
+                ...globals.defaultHttpDirective,
+                ...config.http[i],
+            }
+            configServers(i)
+        }
+    } else if (config.http && typeof(config.http) == 'object') {
+        //a single http directive was passed by an object, merge defaults on it
+        config.http = [{
+            ...globals.defaultHttpDirective,
+            ...config.http,
+        }]
+        configServers(0)
+        
+    } else {
+        //no http directive passed, use default everything
+        config.http = [globals.defaultHttpDirective]
+        config.http[0].servers = [globals.defaultServerBlock]
+        config.http[0].servers[0].locations = globals.defaultLocationsBlock
+
+    }
+    return config
+
+    function configServers(i) {
+        if (config.http[i].servers && Array.isArray(config.http[i].servers)) {
+            //a servers array was passed with this http directive, merge defaults on each
+            for (var b = 0; b < config.http[i].servers.length; b++) {
+                config.http[i].servers[b] = {
+                    ...globals.defaultServerBlock,
+                    ...config.http[i].servers[b],
+                }
+                configLocations(i, b)
+            }
+        } else if (config.http[i].servers && typeof(config.http[i].servers) == 'object') {
+            //a server object was passed with this http directive, merge defaults on it
+            config.http[i].servers = [{
+                ...globals.defaultServerBlock,
+                ...config.http[i].servers,
+            }]
+            configLocations(i, 0)
+        } else {
+            //no servers array passed, use default servers array on this http directive
+            config.http[i].servers = [globals.defaultServerBlock]
+            config.http[i].servers[0].locations = globals.defaultLocationsBlock
+        }
+    }
+
+    function configLocations(i, b) {
+        
+        if (config.http[i].servers[b].locations && Array.isArray(config.http[i].servers[b].locations)) {
+            //locations array was passed, do nothing 
+        } else if (config.http[i].servers[b].locations && typeof(config.http[i].servers[b].locations) == 'object') {
+            //locations object was passed, make it into an array with only it
+            config.http[i].servers[b].locations = [config.http[i].servers[b].locations]
+        } else {
+            //no locations array passed, use default
+            config.http[i].servers[b].locations = globals.defaultLocationsBlock
+        }
+    }
+
+
 }
 
 function copySync(srcDir, destDir) {
@@ -101,16 +253,24 @@ function exitHandler(options, exitCode) {
     if (options.cleanup) {
         
 
+        console.log(`Exiting NGINX child process(es)... Timeout 3s...`)
+        //for (var tenant of globals.tenants) {
+        for (var i = 0; i < globals.tenants.length; i++) {
+            try {
+                console.log(`quitting tenant ${globals.tenants[i].pid}`)
+                globals.tenants[i].quit()
+                
+            } catch (err) {
+                console.log(err)
+            }
+            
+        }
+        //sleep(2150)
         if (exitCode == 0) {
             console.log(`Process exit code 0.`)
         } else {
             console.log(`Exit code was non-zero, code ${exitCode}.`)
         }
-        /**/
-        console.log(`Exiting NGINX child process(es)... Timeout 3s...`)
-        
-        return closeInstances()
-        
 
     } else if (options.exit) {
         //exit the process
@@ -137,59 +297,3 @@ try {
     
 }
 
-function closeInstances() {
-    for (var tenant of globals.tenants) {
-        tenant.quit()
-    }
-}
-
-function closeInstancesOld() {
-    var exitApps = []
-    if (process.platform == 'win32') {
-        //kill all processes this library has spawned
-        
-        if (globals.tenantCount > 1) {
-            //multiple processes to close
-            console.log(`multiple tenants`)
-            
-            for (var i = 0; i < globals.tenantCount; i++) {
-                
-                var newTenantPath = '';
-
-                if (i == 0) {
-                    //this is first process
-                    if (globals.appPrefix) {
-                        newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${globals.appPrefix}`);
-                    } else {
-                        newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}`);
-                    }
-                } else {
-                    //this is not the first process
-                    if (globals.appPrefix) {
-                        newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${globals.appPrefix}-tenant${i}`);
-                    } else {
-                        newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-tenant${i}`);
-                    }
-                }
-                
-                console.log(`loop running ${path.resolve(newTenantPath, 'nginx.exe')}`)
-                const stdout = execFileSync('nginx.exe', ['-s', 'quit'], { cwd: path.resolve(newTenantPath) });
-                console.log(stdout.toString());
-            }
-            
-        } else {
-            //only one master tenant
-            console.log(`single tenant`)
-            var newTenantPath = '';
-
-            if (globals.appPrefix) {
-                newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}-${globals.appPrefix}`);
-            } else {
-                newTenantPath = path.resolve(`bin/nginx-${globals.nginxVer}`);
-            }
-            
-            const stdout = execFileSync('nginx.exe', ['-s', 'quit'], { cwd: path.resolve(newTenantPath) })
-            console.log(stdout.toString());
-        }
-    }
-}
