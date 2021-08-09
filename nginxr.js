@@ -1,12 +1,10 @@
-const path = require('path');
-const { execFile, execFileSync } = require('child_process');
-const cp = require('child_process');
-const process = require('process');
-const fs = require('fs');
-const { KindLogs } = require('kindlogs');
-const confMaker = require('./config-maker.js');
-const fse = require('fs-extra');
-const deepmerge = require('deepmerge')
+const path = require('path')
+const cp = require('child_process')
+const process = require('process')
+const fs = require('fs')
+const { KindLogs } = require('kindlogs')
+const confMaker = require('./config-maker.js')
+const fse = require('fs-extra')
 
 
 const sleep = milliseconds => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)
@@ -103,7 +101,7 @@ module.exports = {
             var thisClass = this
             var configRendered = confMaker.makeConfig(mergeDefaultConfig(options))
             fs.writeFileSync(path.resolve(this.cwd, 'conf/nginx.conf'), configRendered)
-            const stdout = execFileSync('nginx.exe', ['-s', 'reload'], { cwd: this.cwd })
+            const stdout = cp.execFileSync('nginx.exe', ['-s', 'reload'], { cwd: this.cwd })
             console.log(stdout.toString());
             sleep(2000)
             //setTimeout(()=> {
@@ -133,7 +131,7 @@ module.exports = {
             var console = new KindLogs('nginxr > quit')
             var thisClass = this
             console.log(this.cwd)
-            execFileSync('nginx.exe', ['-s', 'quit'], { cwd: this.cwd, detached: true, })
+            cp.execFileSync('nginx.exe', ['-s', 'quit'], { cwd: this.cwd, detached: true, })
             if (splice) globals.tenants.splice(thisClass.tenantIndex-1, 1)
             //sleep(2150)
             return true
@@ -156,6 +154,7 @@ module.exports = {
             
             this.tenantIndex = globals.tenants.push(this)
             console.log(`Started NGINX master process at pid ${this.pid}.`);
+            sleep(450)
             //}, 450)
 
             
